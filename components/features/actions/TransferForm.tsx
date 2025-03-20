@@ -1,4 +1,4 @@
-import { FC, useCallback, useMemo, useState } from "react";
+import { FC, useCallback, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -59,11 +59,13 @@ export const TransferForm: FC<TransferFormProps> = ({ onStatusChange }) => {
             `Transaction failed: ${result?.error || "Unknown error"}`
           );
         }
-      } catch (error: any) {
+      } catch (error: Error | unknown) {
         console.error("Transfer error:", error);
         onStatusChange(
           "error",
-          `Transaction failed: ${error.message || "Unknown error"}`
+          `Transaction failed: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
         );
       }
     },

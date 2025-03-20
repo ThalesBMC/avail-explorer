@@ -15,6 +15,20 @@ export interface TransactionResult {
   error?: string;
 }
 
+export interface RawTransaction {
+  id?: string;
+  type?: string;
+  timestamp?: string | number;
+  status?: string;
+  message?: string;
+  senderAddress?: string;
+  details?: {
+    recipient?: string;
+    amount?: string;
+    data?: string;
+  };
+}
+
 export interface TransactionsPaginatedProps {
   currentPage: number;
   setCurrentPage: (page: number) => void;

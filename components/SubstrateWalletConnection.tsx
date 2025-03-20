@@ -29,11 +29,12 @@ export function SubstrateWalletConnection() {
       if (walletAccounts.length > 0) {
         setSelectedAccount(walletAccounts[0].address);
       }
-    } catch (err: any) {
+    } catch (err: Error | unknown) {
       console.error("Failed to connect wallet:", err);
       setError(
-        err.message ||
-          "Failed to connect wallet. Please make sure you have the Polkadot.js or SubWallet extension installed and enabled."
+        err instanceof Error
+          ? err.message
+          : "Failed to connect wallet. Please make sure you have the Polkadot.js or SubWallet extension installed and enabled."
       );
     } finally {
       setIsConnecting(false);

@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Avail Explorer
+
+An intuitive explorer interface for the Avail network, allowing interaction with the blockchain, visualization of statistics, and transaction management.
+
+## Key Features
+
+- **Network Statistics**: Real-time dashboard with Avail blockchain metrics
+- **Transaction History**: View recent transactions with pagination support
+- **Auto-Updates**: Data automatically refreshed at regular intervals
+- **Wallet Connection**: Integration with Substrate wallets for network interaction
+- **Blockchain Actions**:
+  - Token transfers
+  - Data submission to the network
+- **Personal Transaction History**: Track your own transactions
+- **Connectivity Status**: Visual indicator of network connection state
+
+## Tech Stack
+
+- **Next.js**: React framework for server-side rendering and static site generation
+- **React Query**: Server state management and data caching
+- **Zustand**: Simplified global state management
+- **Tailwind CSS**: Utility-first CSS framework for rapid design
+- **Zod**: TypeScript-first schema validation
+- **Shadcn**: Reusable UI components
+- **GraphQL**: Query language for APIs
+- **avail-js-sdk**: Official SDK for Avail network interaction
+- **@polkadot/api**: JavaScript library for Substrate networks
+- **@polkadot/extension-dapp**: Browser extension integration for Substrate wallets
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+```
+
+2. Run the development server:
+
+```bash
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Screenshots
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Transaction History
 
-## Learn More
+<img src="https://github.com/user/avail-explorer/raw/main/docs/images/transaction-history.png" width="1439" alt="Transaction History" />
 
-To learn more about Next.js, take a look at the following resources:
+### Recent Transactions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+<img src="https://github.com/user/avail-explorer/raw/main/docs/images/recent-transactions.png" width="1439" alt="Recent Transactions" />
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Network Statistics
 
-## Deploy on Vercel
+<img src="https://github.com/user/avail-explorer/raw/main/docs/images/network-statistics.png" width="1439" alt="Network Statistics" />
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Actions Panel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+<img src="https://github.com/user/avail-explorer/raw/main/docs/images/actions-panel.png" width="1439" alt="Actions Panel" />

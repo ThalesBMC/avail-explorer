@@ -11,14 +11,10 @@ import {
   GET_LATEST_TRANSACTIONS,
 } from "./graphql";
 import { TransactionsResponse, BlobSize24hResponse } from "@/types/graphql";
-
-import { Account, SDK, BN } from "avail-js-sdk";
 import { signedExtensions, types } from "avail-js-sdk";
 import { isNumber } from "util";
 import { ChainStats } from "@/types/stats";
-
-// Use Turing RPC endpoint
-const AVAIL_RPC_URL = "wss://turing-rpc.avail.so/ws";
+import { AVAIL_RPC_URL } from "@/utils/constant";
 
 // Cache for the Avail API instance
 let apiInstance: ApiPromise | null = null;
@@ -121,9 +117,7 @@ export async function getLatestBlock() {
 export async function getAccountBalance(address: string) {
   const api = await getAvailApi();
   try {
-    console.log("Getting account balance for address:", address);
     const accountInfo = await api.query.system.account(address);
-    console.log("Balance:", accountInfo);
 
     const accountData = (accountInfo as any).data;
     return {
@@ -186,7 +180,6 @@ export async function submitData(address: string, data: string) {
 
     if (injector.metadata && !extensionsInitialized[injector.name]) {
       const metadata = getInjectorMetadata(api);
-      console.log("Initializing extension metadata:", metadata);
       await injector.metadata.provide(metadata as any);
       extensionsInitialized[injector.name] = true;
       console.log(`Extension ${injector.name} metadata initialized`);
@@ -194,7 +187,6 @@ export async function submitData(address: string, data: string) {
 
     // Create and send the transaction
     const tx = api.tx.dataAvailability.submitData(data);
-    console.log("Sending transaction with data:", data);
 
     return new Promise((resolve, reject) => {
       tx.signAndSend(
@@ -231,8 +223,6 @@ export async function submitData(address: string, data: string) {
               );
               resolve(status.asFinalized.toString());
             }
-            if (status.isReady) console.log("Transaction status: Ready");
-            if (status.isFuture) console.log("Transaction status: Future");
           }
         }
       ).catch((error) => {

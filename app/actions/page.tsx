@@ -84,7 +84,7 @@ export default function ActionsPage() {
               Connect your wallet to perform actions on the Avail network.
             </p>
             <p className="text-sm text-gray-400">
-              Use the "Connect Wallet" button in the top right corner.
+              Use the &quot;Connect Wallet&quot; button in the top right corner.
             </p>
           </div>
         )}

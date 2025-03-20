@@ -35,7 +35,7 @@ export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
 
   const charCount = useMemo(
     () => form.watch("data")?.length || 0,
-    [form.watch("data")]
+    [form.watch("data"), form]
   );
 
   const onSubmit = useCallback(
@@ -54,11 +54,13 @@ export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
             `Data submission failed: ${result?.error || "Unknown error"}`
           );
         }
-      } catch (error: any) {
+      } catch (error: Error | unknown) {
         console.error("Data submit error:", error);
         onStatusChange(
           "error",
-          `Data submission failed: ${error.message || "Unknown error"}`
+          `Data submission failed: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
         );
       }
     },

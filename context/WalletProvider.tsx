@@ -6,14 +6,12 @@ interface WalletProviderProps {
   children: ReactNode;
 }
 
-// Create a client-side only component
 const WalletProviderClient: FC<WalletProviderProps> = ({ children }) => {
   const { setAccounts, setSelectedAccount } = useWalletStore();
 
   useEffect(() => {
     const initWallet = async () => {
       try {
-        // Dynamically import the functions only on client side
         const { connectWallet, getAccounts } = await import(
           "@/api/avail-client"
         );
@@ -34,7 +32,6 @@ const WalletProviderClient: FC<WalletProviderProps> = ({ children }) => {
       }
     };
 
-    // Only run on client side
     if (typeof window !== "undefined") {
       initWallet();
     }
