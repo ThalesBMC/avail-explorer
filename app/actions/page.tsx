@@ -12,6 +12,7 @@ import { DataForm } from "@/components/features/actions/DataForm";
 
 import { ActionSelector } from "@/components/features/actions/ActionSelector";
 import { TransactionHistory } from "@/components/features/actions/TransactionHistory";
+import { StatusBadge } from "@/components/StatusBadge";
 
 export default function ActionsPage() {
   const { selectedAccount } = useWalletStore();
@@ -34,6 +35,11 @@ export default function ActionsPage() {
     },
     []
   );
+
+  const resetStatus = useCallback(() => {
+    setTxStatus("idle");
+    setTxMessage("");
+  }, []);
 
   return (
     <div className="container mx-auto py-8 max-w-4xl">
@@ -75,6 +81,12 @@ export default function ActionsPage() {
             ) : (
               <DataForm onStatusChange={handleStatusChange} />
             )}
+
+            <StatusBadge
+              status={txStatus}
+              message={txMessage}
+              onReset={resetStatus}
+            />
           </>
         ) : (
           <div className="py-12 text-center">

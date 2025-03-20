@@ -106,7 +106,7 @@ export const TransferForm: FC<TransferFormProps> = ({ onStatusChange }) => {
         )}
         {isInsufficientBalance && (
           <p className="mt-1 text-sm text-red-600">
-            Insufficient balance. Please reserve at least 0.1 AVAIL for fees.
+            Insufficient balance. Please reserve at least 0.124 AVAIL for fees.
           </p>
         )}
       </div>
