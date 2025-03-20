@@ -11,8 +11,3 @@ export interface StatusCardsGroupProps {
     internet: boolean;
   };
 }
-
-export interface StatusBadgeProps {
-  status: "idle" | "pending" | "success" | "error";
-  message: string;
-}

@@ -9,7 +9,7 @@ import { useBalance } from "@/hooks/useBalance";
 import { useTransactionStore } from "@/stores/TransactionStore";
 import { TransferForm } from "@/components/features/actions/TransferForm";
 import { DataForm } from "@/components/features/actions/DataForm";
-import { StatusBadge } from "@/components/StatusBadge";
+
 import { ActionSelector } from "@/components/features/actions/ActionSelector";
 import { TransactionHistory } from "@/components/features/actions/TransactionHistory";
 
@@ -75,8 +75,6 @@ export default function ActionsPage() {
             ) : (
               <DataForm onStatusChange={handleStatusChange} />
             )}
-
-            <StatusBadge status={txStatus} message={txMessage} />
           </>
         ) : (
           <div className="py-12 text-center">
