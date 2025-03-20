@@ -22,7 +22,7 @@ export default function BlocksPage() {
           height={64}
           className="rounded-full"
         />
-        <h1 className="text-3xl font-bold text-primary mt-2">Avail Explorer</h1>
+        <h1 className="text-3xl font-bold mt-2">Avail Explorer</h1>
       </div>
 
       <div className="flex items-center mb-6">
