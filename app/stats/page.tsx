@@ -31,7 +31,7 @@ export default function BlocksPage() {
           className="flex items-center text-primary hover:text-primary-dark mr-4"
         >
           <ChevronLeft className="h-5 w-5" />
-          <span>Back to Home</span>
+          <span>Back</span>
         </Link>
         <h1 className="text-2xl font-bold text-gray-800">Network Statistics</h1>
       </div>

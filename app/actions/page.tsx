@@ -49,7 +49,7 @@ export default function ActionsPage() {
           className="flex items-center text-primary hover:text-primary-dark mr-4"
         >
           <ChevronLeft className="h-5 w-5" />
-          <span>Back to Home</span>
+          <span>Back</span>
         </Link>
         <h1 className="text-2xl font-bold text-gray-800">Actions</h1>
       </div>
