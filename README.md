@@ -43,20 +43,18 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Screenshots
+### Actions Panel
+
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/actions.png" width="1439" alt="Actions Panel" />
 
 ### Transaction History
 
 <img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/transaction_history.png" width="1439" alt="Transaction History" />
 
-### Recent Transactions
-
-<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/recent_transactions.png" width="1439" alt="Recent Transactions" />
-
 ### Network Statistics
 
 <img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/network_stats.png" width="1439" alt="Network Statistics" />
 
-### Actions Panel
+### Recent Transactions
 
-<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/actions.png" width="1439" alt="Actions Panel" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/recent_transactions.png" width="1439" alt="Recent Transactions" />
