@@ -55,8 +55,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Network Statistics
 
-<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/network_statistics.png" width="1439" alt="Network Statistics" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/network_stats.png" width="1439" alt="Network Statistics" />
 
 ### Actions Panel
 
-<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/actions_panel.png" width="1439" alt="Actions Panel" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/actions.png" width="1439" alt="Actions Panel" />
