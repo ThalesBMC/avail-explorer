@@ -3,7 +3,7 @@ import Image from "next/image";
 export default function Home() {
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col items-center gap-2 justify-center mb-8">
+      <div className="flex flex-col items-center mr-4 gap-2 justify-center mb-8">
         <Image
           src="/images/avail_logo.jpeg"
           alt="Avail Logo"
