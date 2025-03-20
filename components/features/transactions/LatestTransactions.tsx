@@ -4,7 +4,7 @@ import { Transaction } from "@/types/graphql";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { TransactionRow } from "./TransactionRow";
-import { LoadingSkeleton } from "@/components/ui/loadingSkeleton";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { formatRelativeTime } from "@/utils";
 import { useTransactions } from "@/hooks/useTransactions";
 
