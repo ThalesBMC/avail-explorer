@@ -1,7 +1,3 @@
-import { ChainStats } from "@/components/chain-stats";
-import { ActionPanel } from "@/components/action-panel";
-import { LatestBlocks } from "@/components/latest-blocks";
-import { LatestTransactions } from "@/components/latest-transactions";
 import Link from "next/link";
 
 export default function Home() {
