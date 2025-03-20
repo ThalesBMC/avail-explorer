@@ -47,16 +47,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Transaction History
 
-<img src="https://github.com/user/avail-explorer/raw/main/docs/images/transaction-history.png" width="1439" alt="Transaction History" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/transaction-history.png" width="1439" alt="Transaction History" />
 
 ### Recent Transactions
 
-<img src="https://github.com/user/avail-explorer/raw/main/docs/images/recent-transactions.png" width="1439" alt="Recent Transactions" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/recent-transactions.png" width="1439" alt="Recent Transactions" />
 
 ### Network Statistics
 
-<img src="https://github.com/user/avail-explorer/raw/main/docs/images/network-statistics.png" width="1439" alt="Network Statistics" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/network-statistics.png" width="1439" alt="Network Statistics" />
 
 ### Actions Panel
 
-<img src="https://github.com/user/avail-explorer/raw/main/docs/images/actions-panel.png" width="1439" alt="Actions Panel" />
+<img src="https://raw.githubusercontent.com/ThalesBMC/avail-explorer/main/public/images/actions-panel.png" width="1439" alt="Actions Panel" />
