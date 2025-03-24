@@ -15,16 +15,26 @@ export interface TransactionResult {
   blockHash?: string;
   explorerUrl?: string;
   error?: string;
-  status?: "inBlock" | "finalized";
+  status?: "inBlock" | "finalized" | "pending";
   hash?: string;
   txHash?: string;
   extrinsicId?: string;
 }
 
+// Types for transaction events
+export type TransactionEventType =
+  | { type: "BROADCAST"; txHash: string }
+  | { type: "PENDING"; txHash: string }
+  | { type: "IN_BLOCK"; blockHash: string; txHash: string }
+  | { type: "FINALIZED"; blockHash: string; txHash: string }
+  | { type: "ERROR"; error: string; txHash?: string };
+
+export type TransactionEventHandler = (event: TransactionEventType) => void;
+
 export interface ApiTransactionResult {
   success: boolean;
   blockHash: string | null;
-  status?: "inBlock" | "finalized";
+  status?: "inBlock" | "finalized" | "pending";
   error?: string;
   events?: any[];
   warning?: string;

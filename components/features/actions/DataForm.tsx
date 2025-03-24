@@ -1,10 +1,11 @@
-import { FC, useMemo, useCallback } from "react";
+import { FC, useMemo, useCallback, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTransactionHandler } from "@/hooks/useTransactionHandler";
+import { useBalance } from "@/hooks/useBalance";
 import { DataFormValues } from "@/types/actions";
 
 const dataSchema = z.object({
@@ -24,6 +25,8 @@ interface DataFormProps {
 
 export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
   const { handleDataSubmit } = useTransactionHandler();
+  const { isBalanceSufficient } = useBalance();
+  const [isInsufficientBalance, setIsInsufficientBalance] = useState(false);
 
   const form = useForm<DataFormValues>({
     resolver: zodResolver(dataSchema),
@@ -40,6 +43,13 @@ export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
 
   const onSubmit = useCallback(
     async (data: DataFormValues) => {
+      // Check if the balance is sufficient for the network fee (0.124 AVAIL)
+      if (!isBalanceSufficient("0")) {
+        setIsInsufficientBalance(true);
+        return;
+      }
+
+      setIsInsufficientBalance(false);
       onStatusChange("pending", "Submitting data...");
 
       try {
@@ -64,7 +74,7 @@ export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
         );
       }
     },
-    [handleDataSubmit, onStatusChange, form.reset]
+    [handleDataSubmit, onStatusChange, form.reset, isBalanceSufficient]
   );
 
   const textareaClassName = useMemo(
@@ -92,6 +102,12 @@ export const DataForm: FC<DataFormProps> = ({ onStatusChange }) => {
             {form.formState.errors.data && (
               <p className="text-sm text-red-600">
                 {form.formState.errors.data.message}
+              </p>
+            )}
+            {isInsufficientBalance && (
+              <p className="text-sm text-red-600">
+                Insufficient balance. You need at least 0.124 AVAIL for
+                transaction fees.
               </p>
             )}
           </div>

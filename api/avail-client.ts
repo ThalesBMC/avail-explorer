@@ -13,6 +13,7 @@ import { signedExtensions, types } from "avail-js-sdk";
 import { isNumber } from "util";
 import { ChainStats } from "@/types/stats";
 import { AVAIL_RPC_URL } from "@/utils/constant";
+import { TransactionEventHandler } from "@/types/transaction";
 
 // Check if we're in a browser environment
 const isBrowser = typeof window !== "undefined";
@@ -26,7 +27,7 @@ let extensions: InjectedExtension[] = [];
 let extensionsInitialized: Record<string, boolean> = {};
 
 // Dynamic imports for browser-only modules
-const getPolkadotExtension = async () => {
+export const getPolkadotExtension = async () => {
   if (!isBrowser) {
     return {
       web3Accounts: async () => [],
@@ -147,7 +148,7 @@ export async function getAvailApi(): Promise<ApiPromise> {
 /**
  * Get injector metadata for Avail
  */
-function getInjectorMetadata(api: ApiPromise) {
+export function getInjectorMetadata(api: ApiPromise) {
   return {
     chain: api.runtimeChain.toString(),
     specVersion: api.runtimeVersion.specVersion.toNumber(),
@@ -217,363 +218,6 @@ function formatBalance(balanceInPlanck: string): string {
   return shortenedFraction === "0".repeat(displayDecimals)
     ? whole.toString()
     : `${whole}.${shortenedFraction}`;
-}
-
-/**
- * Submit data to Avail network using polkadot.js api.tx approach
- */
-export async function submitData(address: string, data: string) {
-  if (!isBrowser) {
-    throw new Error("Cannot submit data in server-side environment");
-  }
-
-  let api = await getAvailApi();
-  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
-
-  try {
-    if (!(api && api.isConnected)) {
-      const provider = new HttpProvider(AVAIL_RPC_URL);
-      api = await ApiPromise.create({
-        provider,
-        types,
-        signedExtensions,
-      });
-    }
-
-    const accounts = await web3Accounts();
-    const account = accounts.find((acc) => acc.address === address);
-    if (!account) {
-      throw new Error("Account not found");
-    }
-
-    const injector = await web3FromSource(account.meta.source);
-
-    if (injector.metadata && !extensionsInitialized[injector.name]) {
-      const metadata = getInjectorMetadata(api);
-      await injector.metadata.provide(metadata as any);
-      extensionsInitialized[injector.name] = true;
-      console.log(`Extension ${injector.name} metadata initialized`);
-    }
-
-    // Create and send the transaction
-    const tx = api.tx.dataAvailability.submitData(data);
-
-    // Get the transaction hash as hex string for explorer link
-    const initialTxHash = tx.hash.toHex();
-
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-      let timeout = setTimeout(() => {
-        if (!resolved) {
-          console.log("Data submission taking longer than expected...");
-        }
-      }, 30000); // 30 seconds timeout warning
-
-      tx.signAndSend(
-        address,
-        {
-          signer: injector.signer,
-          app_id: 328,
-        } as any,
-        ({ status, isError, events, dispatchError, txHash: signedTxHash }) => {
-          // Get the final txHash from the signAndSend callback
-          const finalTxHash = signedTxHash
-            ? signedTxHash.toString()
-            : initialTxHash;
-
-          if (dispatchError) {
-            const errorInfo = dispatchError.isModule
-              ? api.registry.findMetaError(dispatchError.asModule)
-              : {
-                  section: "unknown",
-                  name: "unknown",
-                  docs: [dispatchError.toString()],
-                };
-
-            clearTimeout(timeout);
-            resolved = true;
-
-            resolve({
-              success: false,
-              error: `${errorInfo.section}.${
-                errorInfo.name
-              }: ${errorInfo.docs.join(" ")}`,
-              blockHash: status?.isInBlock
-                ? status.asInBlock.toString()
-                : status?.isFinalized
-                ? status.asFinalized.toString()
-                : null,
-              extrinsicId: null,
-              txHash: finalTxHash,
-            });
-            return;
-          }
-
-          if (isError) {
-            console.error("Transaction error:", events);
-            clearTimeout(timeout);
-            resolved = true;
-            reject(new Error("Transaction failed"));
-            return;
-          }
-
-          // Check all possible status conditions
-          if (status) {
-            if (status.isInvalid) console.log("Transaction status: Invalid");
-            if (status.isBroadcast)
-              console.log("Transaction status: Broadcast");
-
-            if (status.isInBlock) {
-              const blockHash = status.asInBlock.toString();
-
-              // Find the extrinsic index from the block hash and return as extrinsicId
-              const extrinsicIndex = extractExtrinsicIndex(events);
-              const extrinsicId = extrinsicIndex
-                ? `${blockHash}-${extrinsicIndex}`
-                : null;
-
-              clearTimeout(timeout);
-              resolved = true;
-              resolve({
-                success: true,
-                blockHash: blockHash,
-                status: "inBlock",
-                extrinsicId,
-                txHash: finalTxHash,
-              });
-            }
-
-            if (status.isFinalized) {
-              const blockHash = status.asFinalized.toString();
-
-              // Find the extrinsic index from the block hash and return as extrinsicId
-              const extrinsicIndex = extractExtrinsicIndex(events);
-              const extrinsicId = extrinsicIndex
-                ? `${blockHash}-${extrinsicIndex}`
-                : null;
-
-              clearTimeout(timeout);
-              resolved = true;
-              resolve({
-                success: true,
-                blockHash: blockHash,
-                status: "finalized",
-                extrinsicId,
-                txHash: finalTxHash,
-              });
-            }
-          }
-        }
-      ).catch((error) => {
-        console.error("SignAndSend error:", error);
-        clearTimeout(timeout);
-        resolved = true;
-        reject(error);
-      });
-    });
-  } catch (error) {
-    console.error("Failed to submit data:", error);
-    throw error;
-  }
-}
-
-/**
- * Transfer tokens from one account to another
- * @param fromAddress The address sending tokens
- * @param toAddress The address receiving tokens
- * @param amount The amount in AVAIL to transfer
- * @returns Promise that resolves to the block hash when the transaction is included
- */
-export async function transferTokens(
-  fromAddress: string,
-  toAddress: string,
-  amount: string
-) {
-  if (!isBrowser) {
-    throw new Error("Cannot transfer tokens in server-side environment");
-  }
-
-  let api = await getAvailApi();
-  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
-
-  try {
-    if (!(api && api.isConnected)) {
-      const provider = new WsProvider(AVAIL_RPC_URL);
-      api = await ApiPromise.create({
-        provider,
-        types,
-        signedExtensions,
-      });
-    }
-
-    const accounts = await web3Accounts();
-    const account = accounts.find((acc) => acc.address === fromAddress);
-    if (!account) {
-      throw new Error("Account not found");
-    }
-
-    const injector = await web3FromSource(account.meta.source);
-
-    // Initialize extension metadata if not already done
-    if (injector.metadata && !extensionsInitialized[injector.name]) {
-      const metadata = getInjectorMetadata(api);
-      await injector.metadata.provide(metadata as any);
-      extensionsInitialized[injector.name] = true;
-    }
-
-    // Convert amount to base units
-    const amountInPlanck = convertToBaseUnits(amount);
-    const tx = api.tx.balances.transferKeepAlive(toAddress, amountInPlanck);
-
-    // Get the transaction hash as hex string for explorer link
-    const initialTxHash = tx.hash.toHex();
-
-    return new Promise((resolve, reject) => {
-      let resolved = false;
-      let timeout = setTimeout(() => {
-        if (!resolved) {
-          console.log("Transaction taking longer than expected...");
-        }
-      }, 30000); // 30 seconds timeout warning
-
-      tx.signAndSend(
-        fromAddress,
-        {
-          signer: injector.signer,
-        },
-        async ({
-          status,
-          dispatchError,
-          events,
-          txHash: signedTxHash,
-          dispatchInfo,
-          txIndex,
-        }) => {
-          // Get the final txHash from the signAndSend callback
-          const finalTxHash = signedTxHash
-            ? signedTxHash.toString()
-            : initialTxHash;
-
-          // Handle dispatch errors
-          if (dispatchError) {
-            if (dispatchError.isModule) {
-              const decoded = api.registry.findMetaError(
-                dispatchError.asModule
-              );
-              const { docs, name, section } = decoded;
-              clearTimeout(timeout);
-              resolved = true;
-
-              resolve({
-                success: false,
-                error: `${section}.${name}: ${docs.join(" ")}`,
-                blockHash: status?.isInBlock
-                  ? status.asInBlock.toString()
-                  : status?.isFinalized
-                  ? status.asFinalized.toString()
-                  : null,
-                txHash: finalTxHash,
-              });
-            } else {
-              // Handle other errors
-              clearTimeout(timeout);
-              resolved = true;
-
-              resolve({
-                success: false,
-                error: dispatchError.toString(),
-                blockHash: status?.isInBlock
-                  ? status.asInBlock.toString()
-                  : status?.isFinalized
-                  ? status.asFinalized.toString()
-                  : null,
-                txHash: finalTxHash,
-              });
-            }
-            return;
-          }
-
-          if (status.isInBlock || status.isFinalized) {
-            const blockHash = status.isFinalized
-              ? status.asFinalized.toString()
-              : status.asInBlock.toString();
-
-            const transferEvent = events.find(
-              ({ event }) =>
-                event.section === "balances" && event.method === "Transfer"
-            );
-
-            if (transferEvent) {
-              clearTimeout(timeout);
-              resolved = true;
-
-              // Find the extrinsic index from the block hash and return as extrinsicId
-              const extrinsicIndex = extractExtrinsicIndex(events);
-              const extrinsicId = extrinsicIndex
-                ? `${blockHash}-${extrinsicIndex}`
-                : null;
-
-              resolve({
-                success: true,
-                blockHash: blockHash,
-                status: status.isFinalized ? "finalized" : "inBlock",
-                events: events.map(({ event }) => ({
-                  method: event.method,
-                  section: event.section,
-                  data: event.data.toHuman(),
-                })),
-                extrinsicId,
-                txHash: finalTxHash,
-              });
-            } else {
-              clearTimeout(timeout);
-              resolved = true;
-
-              // Find the extrinsic index from the block hash and return as extrinsicId
-              const extrinsicIndex = extractExtrinsicIndex(events);
-              const extrinsicId = extrinsicIndex
-                ? `${blockHash}-${extrinsicIndex}`
-                : null;
-
-              resolve({
-                success: true,
-                blockHash: blockHash,
-                status: status.isFinalized ? "finalized" : "inBlock",
-                warning: "No transfer event found in transaction",
-                extrinsicId,
-                txHash: finalTxHash,
-              });
-            }
-          }
-
-          if (status.isBroadcast) {
-            if (!resolved) {
-              setTimeout(() => {
-                if (!resolved) {
-                  clearTimeout(timeout);
-                  resolved = true;
-                  resolve({
-                    success: true,
-                    blockHash: null,
-                    status: "pending",
-                    txHash: finalTxHash,
-                  });
-                }
-              }, 3000); // Wait 3 seconds after broadcast to return an initial status
-            }
-          }
-        }
-      ).catch((error) => {
-        console.error("SignAndSend error:", error);
-        clearTimeout(timeout);
-        resolved = true;
-        reject(error);
-      });
-    });
-  } catch (error) {
-    console.error("Failed to transfer tokens:", error);
-    throw error;
-  }
 }
 
 /**
@@ -728,32 +372,6 @@ export async function silentReconnect(
 }
 
 /**
- * Extract the extrinsic index from transaction events
- * This function looks for the extrinsic index within the transaction events
- * @param events The events from the transaction
- * @returns The extrinsic index as a string or null if not found
- */
-function extractExtrinsicIndex(events: any[]) {
-  if (!events || events.length === 0) return null;
-
-  // Look through the events to find the extrinsic index from the phase
-  for (const eventRecord of events) {
-    // Check if the event has a phase and if it's ApplyExtrinsic
-    if (eventRecord.phase && eventRecord.phase.isApplyExtrinsic) {
-      return eventRecord.phase.asApplyExtrinsic.toString();
-    }
-  }
-
-  for (const eventRecord of events) {
-    if (eventRecord.phase) {
-      return "1";
-    }
-  }
-
-  return "1";
-}
-
-/**
  * Disconnects the wallet and clears local storage
  */
 export async function disconnectWallet(): Promise<void> {
@@ -770,5 +388,252 @@ export async function disconnectWallet(): Promise<void> {
   } catch (error) {
     console.error("Error disconnecting wallet:", error);
     throw error;
+  }
+}
+
+/**
+ * Transfer tokens from one account to another using event emitter pattern
+ * @param fromAddress The address sending tokens
+ * @param toAddress The address receiving tokens
+ * @param amount The amount in AVAIL to transfer
+ * @param onEvent Callback to handle transaction events
+ */
+export async function transferTokens(
+  fromAddress: string,
+  toAddress: string,
+  amount: string,
+  onEvent: TransactionEventHandler
+) {
+  if (!isBrowser) {
+    throw new Error("Cannot transfer tokens in server-side environment");
+  }
+
+  let api = await getAvailApi();
+  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
+
+  try {
+    if (!(api && api.isConnected)) {
+      const provider = new WsProvider(AVAIL_RPC_URL);
+      api = await ApiPromise.create({
+        provider,
+        types,
+        signedExtensions,
+      });
+    }
+
+    const accounts = await web3Accounts();
+    const account = accounts.find((acc) => acc.address === fromAddress);
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    const injector = await web3FromSource(account.meta.source);
+
+    // Initialize extension metadata if not already done
+    if (injector.metadata && !extensionsInitialized[injector.name]) {
+      const metadata = getInjectorMetadata(api);
+      await injector.metadata.provide(metadata as any);
+      extensionsInitialized[injector.name] = true;
+    }
+
+    // Convert amount to base units
+    const amountInPlanck = convertToBaseUnits(amount);
+    const tx = api.tx.balances.transferKeepAlive(toAddress, amountInPlanck);
+
+    // Emit broadcast event immediately
+    onEvent({ type: "BROADCAST", txHash: "" });
+
+    tx.signAndSend(
+      fromAddress,
+      {
+        signer: injector.signer,
+      },
+      async ({ status, dispatchError, events, txHash: signedTxHash }) => {
+        // Get the final txHash from the signAndSend callback
+        const finalTxHash = signedTxHash.toString();
+
+        // Handle dispatch errors
+        if (dispatchError) {
+          if (dispatchError.isModule) {
+            const decoded = api.registry.findMetaError(dispatchError.asModule);
+            const { docs, name, section } = decoded;
+            onEvent({
+              type: "ERROR",
+              error: `${section}.${name}: ${docs.join(" ")}`,
+              txHash: finalTxHash,
+            });
+          } else {
+            onEvent({
+              type: "ERROR",
+              error: dispatchError.toString(),
+              txHash: finalTxHash,
+            });
+          }
+          return;
+        }
+
+        // Handle different status updates
+        if (status.isBroadcast) {
+          onEvent({ type: "PENDING", txHash: finalTxHash });
+        }
+
+        if (status.isInBlock) {
+          const blockHash = status.asInBlock.toString();
+          onEvent({
+            type: "IN_BLOCK",
+            blockHash,
+            txHash: finalTxHash,
+          });
+        }
+
+        if (status.isFinalized) {
+          const blockHash = status.asFinalized.toString();
+          onEvent({
+            type: "FINALIZED",
+            blockHash,
+            txHash: finalTxHash,
+          });
+        }
+      }
+    ).catch((error) => {
+      onEvent({
+        type: "ERROR",
+        error: error.message || "Unknown error occurred",
+        txHash: "",
+      });
+    });
+  } catch (error) {
+    onEvent({
+      type: "ERROR",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    });
+  }
+}
+
+/**
+ * Submit data to Avail network using polkadot.js api.tx approach
+ * @param address The address submitting data
+ * @param data The data to submit
+ * @param onEvent Callback to handle transaction events
+ */
+export async function submitData(
+  address: string,
+  data: string,
+  onEvent: TransactionEventHandler
+) {
+  if (!isBrowser) {
+    throw new Error("Cannot submit data in server-side environment");
+  }
+
+  let api = await getAvailApi();
+  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
+
+  try {
+    if (!(api && api.isConnected)) {
+      const provider = new HttpProvider(AVAIL_RPC_URL);
+      api = await ApiPromise.create({
+        provider,
+        types,
+        signedExtensions,
+      });
+    }
+
+    const accounts = await web3Accounts();
+    const account = accounts.find((acc) => acc.address === address);
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    const injector = await web3FromSource(account.meta.source);
+
+    if (injector.metadata && !extensionsInitialized[injector.name]) {
+      const metadata = getInjectorMetadata(api);
+      await injector.metadata.provide(metadata as any);
+      extensionsInitialized[injector.name] = true;
+      console.log(`Extension ${injector.name} metadata initialized`);
+    }
+
+    // Create and send the transaction
+    const tx = api.tx.dataAvailability.submitData(data);
+
+    // Emit broadcast event immediately
+    onEvent({ type: "BROADCAST", txHash: "" });
+
+    tx.signAndSend(
+      address,
+      {
+        signer: injector.signer,
+        app_id: 328,
+      } as any,
+      ({ status, isError, events, dispatchError, txHash: signedTxHash }) => {
+        // Get the final txHash from the signAndSend callback
+        const finalTxHash = signedTxHash.toString();
+
+        // Handle dispatch errors
+        if (dispatchError) {
+          const errorInfo = dispatchError.isModule
+            ? api.registry.findMetaError(dispatchError.asModule)
+            : {
+                section: "unknown",
+                name: "unknown",
+                docs: [dispatchError.toString()],
+              };
+
+          onEvent({
+            type: "ERROR",
+            error: `${errorInfo.section}.${
+              errorInfo.name
+            }: ${errorInfo.docs.join(" ")}`,
+            txHash: finalTxHash,
+          });
+          return;
+        }
+
+        if (isError) {
+          onEvent({
+            type: "ERROR",
+            error: "Transaction failed",
+            txHash: finalTxHash,
+          });
+          return;
+        }
+
+        // Handle different status updates
+        if (status) {
+          if (status.isBroadcast) {
+            onEvent({ type: "PENDING", txHash: finalTxHash });
+          }
+
+          if (status.isInBlock) {
+            const blockHash = status.asInBlock.toString();
+            onEvent({
+              type: "IN_BLOCK",
+              blockHash,
+              txHash: finalTxHash,
+            });
+          }
+
+          if (status.isFinalized) {
+            const blockHash = status.asFinalized.toString();
+            onEvent({
+              type: "FINALIZED",
+              blockHash,
+              txHash: finalTxHash,
+            });
+          }
+        }
+      }
+    ).catch((error) => {
+      onEvent({
+        type: "ERROR",
+        error: error.message || "Unknown error occurred",
+        txHash: "",
+      });
+    });
+  } catch (error) {
+    onEvent({
+      type: "ERROR",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    });
   }
 }

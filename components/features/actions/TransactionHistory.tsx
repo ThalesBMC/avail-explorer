@@ -108,10 +108,8 @@ export const TransactionHistory: FC<TransactionHistoryProps> = ({
                       </div>
                     )}
                     <div className="text-xs mt-1 flex flex-col gap-1">
-                      {tx.status === "error" ? (
+                      {tx.status === "error" && (
                         <span className="text-red-600">{tx.message}</span>
-                      ) : (
-                        <span className="text-gray-600">{tx.message}</span>
                       )}
                       {tx.explorerUrl && (
                         <a
