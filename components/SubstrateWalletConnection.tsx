@@ -88,7 +88,13 @@ export function SubstrateWalletConnection() {
         setIsConnecting(false);
       }
     },
-    [setAccounts, setSelectedAccount, setStatus, setLastConnectedWallet]
+    [
+      setAccounts,
+      setSelectedAccount,
+      setStatus,
+      setLastConnectedWallet,
+      lastConnectedWallet,
+    ]
   );
 
   const handleAccountChange = useCallback(
@@ -107,6 +113,7 @@ export function SubstrateWalletConnection() {
       await disconnectWallet();
       setStatus(WalletStatus.DISCONNECTED);
     } catch (error) {
+      console.error("Error disconnecting wallet:", error);
       setStatus(WalletStatus.DISCONNECTED);
     }
   };
