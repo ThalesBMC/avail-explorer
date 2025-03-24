@@ -12,7 +12,31 @@ export interface TransactionStore {
 
 export interface TransactionResult {
   success: boolean;
+  blockHash?: string;
+  explorerUrl?: string;
   error?: string;
+  status?: "inBlock" | "finalized";
+  hash?: string;
+  txHash?: string;
+  extrinsicId?: string;
+}
+
+export interface ApiTransactionResult {
+  success: boolean;
+  blockHash: string | null;
+  status?: "inBlock" | "finalized";
+  error?: string;
+  events?: any[];
+  warning?: string;
+  extrinsicId?: string;
+  hash?: string;
+  txHash?: string;
+}
+
+export interface PendingTx {
+  id: string;
+  timeoutId?: NodeJS.Timeout;
+  intervalId?: NodeJS.Timeout;
 }
 
 export interface RawTransaction {

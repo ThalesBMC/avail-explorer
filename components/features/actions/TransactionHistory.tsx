@@ -107,11 +107,23 @@ export const TransactionHistory: FC<TransactionHistoryProps> = ({
                         </span>
                       </div>
                     )}
-                    {tx.status === "error" && (
-                      <div className="text-red-600 text-xs mt-1">
-                        {tx.message}
-                      </div>
-                    )}
+                    <div className="text-xs mt-1 flex flex-col gap-1">
+                      {tx.status === "error" ? (
+                        <span className="text-red-600">{tx.message}</span>
+                      ) : (
+                        <span className="text-gray-600">{tx.message}</span>
+                      )}
+                      {tx.explorerUrl && (
+                        <a
+                          href={tx.explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline whitespace-nowrap"
+                        >
+                          View in Explorer
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

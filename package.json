@@ -13,6 +13,7 @@
     "@polkadot/api": "^15.8.1",
     "@polkadot/extension-dapp": "^0.58.5",
     "@polkadot/extension-inject": "^0.58.5",
+    "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
     "@radix-ui/react-slot": "^1.1.2",
     "@tanstack/react-query": "^5.69.0",

@@ -1,10 +1,27 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { connectWallet, getAccounts } from "@/api/avail-client";
+import {
+  connectWallet,
+  getAccounts,
+  disconnectWallet,
+} from "@/api/avail-client";
 import { Button } from "@/components/ui/button";
 import { truncateHash } from "@/utils";
 import { useWalletStore } from "@/stores/WalletStore";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { WalletStatus } from "@/stores/WalletStore";
+
+// Available wallet extensions
+const WALLET_EXTENSIONS = [
+  { id: "subwallet-js", name: "SubWallet", logo: "🔵" },
+];
 
 export function SubstrateWalletConnection() {
   const {
@@ -12,34 +29,67 @@ export function SubstrateWalletConnection() {
     accounts,
     setSelectedAccount,
     setAccounts,
-    disconnect,
+    setStatus,
+    lastConnectedWallet,
+    setLastConnectedWallet,
   } = useWalletStore();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isWalletListOpen, setIsWalletListOpen] = useState(false);
 
-  const handleConnect = useCallback(async () => {
-    setIsConnecting(true);
-    setError(null);
+  const handleConnect = useCallback(
+    async (walletId?: string) => {
+      if (!walletId) return;
 
-    try {
-      await connectWallet("Avail Explorer");
-      const walletAccounts = await getAccounts();
-      setAccounts(walletAccounts);
+      setIsConnecting(true);
+      setError(null);
+      setIsWalletListOpen(false);
+      setStatus(WalletStatus.CONNECTING);
 
-      if (walletAccounts.length > 0) {
-        setSelectedAccount(walletAccounts[0].address);
+      try {
+        if (lastConnectedWallet && lastConnectedWallet !== walletId) {
+          await disconnectWallet();
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        localStorage.setItem("last-connected-wallet", walletId);
+        setLastConnectedWallet(walletId);
+
+        const walletName =
+          WALLET_EXTENSIONS.find((w) => w.id === walletId)?.name || walletId;
+
+        const connectedExtensions = await connectWallet(
+          `Avail Explorer via ${walletName}`
+        );
+
+        if (connectedExtensions.length === 0) {
+          throw new Error(`Could not connect to ${walletName}`);
+        }
+
+        const walletAccounts = await getAccounts();
+
+        if (walletAccounts.length > 0) {
+          setAccounts(walletAccounts);
+          setSelectedAccount(walletAccounts[0].address);
+          setStatus(WalletStatus.CONNECTED);
+        } else {
+          throw new Error("No Account found");
+        }
+      } catch (err: Error | unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to connect wallet. Make sure you have the extension installed and enabled."
+        );
+        localStorage.removeItem("last-connected-wallet");
+        setLastConnectedWallet(null);
+        setStatus(WalletStatus.DISCONNECTED);
+      } finally {
+        setIsConnecting(false);
       }
-    } catch (err: Error | unknown) {
-      console.error("Failed to connect wallet:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to connect wallet. Please make sure you have the Polkadot.js or SubWallet extension installed and enabled."
-      );
-    } finally {
-      setIsConnecting(false);
-    }
-  }, [setAccounts, setSelectedAccount]);
+    },
+    [setAccounts, setSelectedAccount, setStatus, setLastConnectedWallet]
+  );
 
   const handleAccountChange = useCallback(
     (address: string) => {
@@ -48,9 +98,18 @@ export function SubstrateWalletConnection() {
     [setSelectedAccount]
   );
 
-  const handleDisconnect = useCallback(() => {
-    disconnect();
-  }, [disconnect]);
+  const handleDisconnect = async () => {
+    try {
+      setStatus(WalletStatus.DISCONNECTING);
+      setSelectedAccount(null);
+      setAccounts([]);
+      setLastConnectedWallet(null);
+      await disconnectWallet();
+      setStatus(WalletStatus.DISCONNECTED);
+    } catch (error) {
+      setStatus(WalletStatus.DISCONNECTED);
+    }
+  };
 
   return (
     <div>
@@ -84,13 +143,45 @@ export function SubstrateWalletConnection() {
           </span>
         </div>
       ) : (
-        <Button
-          onClick={handleConnect}
-          disabled={isConnecting}
-          variant="default"
-        >
-          {isConnecting ? "Connecting..." : "Connect Wallet"}
-        </Button>
+        <Dialog open={isWalletListOpen} onOpenChange={setIsWalletListOpen}>
+          <DialogTrigger asChild>
+            <Button
+              onClick={() => setIsWalletListOpen(true)}
+              disabled={isConnecting}
+              variant="default"
+            >
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Connect your wallet</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col space-y-3 py-4">
+              {WALLET_EXTENSIONS.map((wallet) => (
+                <Button
+                  key={wallet.id}
+                  variant="outline"
+                  className={`justify-start text-left font-normal ${
+                    lastConnectedWallet === wallet.id
+                      ? "border-primary bg-primary/10"
+                      : ""
+                  }`}
+                  disabled={isConnecting}
+                  onClick={() => handleConnect(wallet.id)}
+                >
+                  <span className="mr-2">{wallet.logo}</span>
+                  <span className="flex-1">{wallet.name}</span>
+                  {lastConnectedWallet === wallet.id && (
+                    <span className="ml-auto text-xs text-primary px-2 py-1 rounded-full bg-primary/10">
+                      Last used
+                    </span>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {error && <div className="mt-2 text-sm text-red-600">{error}</div>}

@@ -1,10 +1,8 @@
 import { ApiPromise, HttpProvider, WsProvider } from "@polkadot/api";
-import {
-  web3Accounts,
-  web3Enable,
-  web3FromSource,
-} from "@polkadot/extension-dapp";
-import type { InjectedExtension } from "@polkadot/extension-inject/types";
+import type {
+  InjectedExtension,
+  InjectedWindow,
+} from "@polkadot/extension-inject/types";
 import {
   fetchGraphQLData,
   GET_24H_BLOB_SIZE,
@@ -16,25 +14,88 @@ import { isNumber } from "util";
 import { ChainStats } from "@/types/stats";
 import { AVAIL_RPC_URL } from "@/utils/constant";
 
-// Cache for the Avail API instance
+// Check if we're in a browser environment
+const isBrowser = typeof window !== "undefined";
+
+declare global {
+  interface Window extends InjectedWindow {}
+}
+
 let apiInstance: ApiPromise | null = null;
 let extensions: InjectedExtension[] = [];
 let extensionsInitialized: Record<string, boolean> = {};
 
-/**
- * Connect to wallet extensions
- */
-export async function connectWallet(appName: string = "Avail Explorer") {
-  try {
-    extensions = await web3Enable(appName);
+// Dynamic imports for browser-only modules
+const getPolkadotExtension = async () => {
+  if (!isBrowser) {
+    return {
+      web3Accounts: async () => [],
+      web3Enable: async () => [],
+      web3FromSource: async () => ({
+        signer: {},
+        metadata: {
+          provide: async () => {},
+        },
+        name: "dummy",
+      }),
+    };
+  }
 
-    if (extensions.length === 0) {
-      throw new Error(
-        "No extension found. Please install Polkadot.js or SubWallet extension"
-      );
+  const { web3Accounts, web3Enable, web3FromSource } = await import(
+    "@polkadot/extension-dapp"
+  );
+  return { web3Accounts, web3Enable, web3FromSource };
+};
+
+export async function connectWallet(
+  appName: string = "Avail Explorer"
+): Promise<InjectedExtension[]> {
+  if (!isBrowser) {
+    throw new Error("Cannot connect wallet in server-side environment");
+  }
+
+  try {
+    extensions = [];
+    extensionsInitialized = {};
+
+    const { web3Enable } = await getPolkadotExtension();
+
+    if (!window.injectedWeb3) {
+      throw new Error("No wallet extension found");
     }
 
-    return extensions;
+    // Search for the SubWallet extension
+    const availableExtensions = Object.entries(window.injectedWeb3);
+    const subwalletExtension = availableExtensions.find(([name]) =>
+      name.toLowerCase().includes("subwallet")
+    );
+
+    if (!subwalletExtension) {
+      throw new Error("SubWallet not found");
+    }
+
+    const [extensionName] = subwalletExtension;
+
+    const singleExtensionWeb3: Record<string, any> = {};
+    singleExtensionWeb3[extensionName] = window.injectedWeb3[extensionName];
+
+    const originalInjectedWeb3 = window.injectedWeb3;
+
+    window.injectedWeb3 = singleExtensionWeb3;
+
+    try {
+      // Enable only the SubWallet extension
+      const enabledExtensions = await web3Enable(appName);
+
+      if (enabledExtensions.length > 0) {
+        extensions = enabledExtensions;
+        return enabledExtensions;
+      }
+
+      throw new Error("Could not connect to SubWallet");
+    } finally {
+      window.injectedWeb3 = originalInjectedWeb3;
+    }
   } catch (error) {
     console.error("Failed to connect wallet:", error);
     throw error;
@@ -45,11 +106,14 @@ export async function connectWallet(appName: string = "Avail Explorer") {
  * Get accounts from connected wallet
  */
 export async function getAccounts() {
-  try {
-    if (extensions.length === 0) {
-      await connectWallet();
-    }
+  if (!isBrowser) {
+    return [];
+  }
 
+  try {
+    const { web3Accounts } = await getPolkadotExtension();
+    // Don't attempt to force-connect if no extensions are available
+    // Just return any available accounts without prompting
     const allAccounts = await web3Accounts();
     return allAccounts;
   } catch (error) {
@@ -65,6 +129,7 @@ export async function getAvailApi(): Promise<ApiPromise> {
   if (!apiInstance) {
     try {
       const provider = new WsProvider(AVAIL_RPC_URL);
+
       apiInstance = await ApiPromise.create({
         provider,
         types,
@@ -158,7 +223,12 @@ function formatBalance(balanceInPlanck: string): string {
  * Submit data to Avail network using polkadot.js api.tx approach
  */
 export async function submitData(address: string, data: string) {
+  if (!isBrowser) {
+    throw new Error("Cannot submit data in server-side environment");
+  }
+
   let api = await getAvailApi();
+  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
 
   try {
     if (!(api && api.isConnected)) {
@@ -188,18 +258,61 @@ export async function submitData(address: string, data: string) {
     // Create and send the transaction
     const tx = api.tx.dataAvailability.submitData(data);
 
+    // Get the transaction hash as hex string for explorer link
+    const initialTxHash = tx.hash.toHex();
+
     return new Promise((resolve, reject) => {
+      let resolved = false;
+      let timeout = setTimeout(() => {
+        if (!resolved) {
+          console.log("Data submission taking longer than expected...");
+        }
+      }, 30000); // 30 seconds timeout warning
+
       tx.signAndSend(
         address,
         {
           signer: injector.signer,
           app_id: 328,
         } as any,
-        ({ status, isError, events }) => {
-          console.log("Transaction status:", status?.toHuman());
+        ({ status, isError, events, dispatchError, txHash: signedTxHash }) => {
+          // Get the final txHash from the signAndSend callback
+          const finalTxHash = signedTxHash
+            ? signedTxHash.toString()
+            : initialTxHash;
+
+          if (dispatchError) {
+            const errorInfo = dispatchError.isModule
+              ? api.registry.findMetaError(dispatchError.asModule)
+              : {
+                  section: "unknown",
+                  name: "unknown",
+                  docs: [dispatchError.toString()],
+                };
+
+            clearTimeout(timeout);
+            resolved = true;
+
+            resolve({
+              success: false,
+              error: `${errorInfo.section}.${
+                errorInfo.name
+              }: ${errorInfo.docs.join(" ")}`,
+              blockHash: status?.isInBlock
+                ? status.asInBlock.toString()
+                : status?.isFinalized
+                ? status.asFinalized.toString()
+                : null,
+              extrinsicId: null,
+              txHash: finalTxHash,
+            });
+            return;
+          }
 
           if (isError) {
             console.error("Transaction error:", events);
+            clearTimeout(timeout);
+            resolved = true;
             reject(new Error("Transaction failed"));
             return;
           }
@@ -209,24 +322,52 @@ export async function submitData(address: string, data: string) {
             if (status.isInvalid) console.log("Transaction status: Invalid");
             if (status.isBroadcast)
               console.log("Transaction status: Broadcast");
+
             if (status.isInBlock) {
-              console.log(
-                "Transaction included in block:",
-                status.asInBlock.toString()
-              );
-              resolve(status.asInBlock.toString());
+              const blockHash = status.asInBlock.toString();
+
+              // Find the extrinsic index from the block hash and return as extrinsicId
+              const extrinsicIndex = extractExtrinsicIndex(events);
+              const extrinsicId = extrinsicIndex
+                ? `${blockHash}-${extrinsicIndex}`
+                : null;
+
+              clearTimeout(timeout);
+              resolved = true;
+              resolve({
+                success: true,
+                blockHash: blockHash,
+                status: "inBlock",
+                extrinsicId,
+                txHash: finalTxHash,
+              });
             }
+
             if (status.isFinalized) {
-              console.log(
-                "Transaction finalized in block:",
-                status.asFinalized.toString()
-              );
-              resolve(status.asFinalized.toString());
+              const blockHash = status.asFinalized.toString();
+
+              // Find the extrinsic index from the block hash and return as extrinsicId
+              const extrinsicIndex = extractExtrinsicIndex(events);
+              const extrinsicId = extrinsicIndex
+                ? `${blockHash}-${extrinsicIndex}`
+                : null;
+
+              clearTimeout(timeout);
+              resolved = true;
+              resolve({
+                success: true,
+                blockHash: blockHash,
+                status: "finalized",
+                extrinsicId,
+                txHash: finalTxHash,
+              });
             }
           }
         }
       ).catch((error) => {
         console.error("SignAndSend error:", error);
+        clearTimeout(timeout);
+        resolved = true;
         reject(error);
       });
     });
@@ -248,7 +389,12 @@ export async function transferTokens(
   toAddress: string,
   amount: string
 ) {
+  if (!isBrowser) {
+    throw new Error("Cannot transfer tokens in server-side environment");
+  }
+
   let api = await getAvailApi();
+  const { web3Accounts, web3FromSource } = await getPolkadotExtension();
 
   try {
     if (!(api && api.isConnected)) {
@@ -279,52 +425,148 @@ export async function transferTokens(
     const amountInPlanck = convertToBaseUnits(amount);
     const tx = api.tx.balances.transferKeepAlive(toAddress, amountInPlanck);
 
+    // Get the transaction hash as hex string for explorer link
+    const initialTxHash = tx.hash.toHex();
+
     return new Promise((resolve, reject) => {
+      let resolved = false;
+      let timeout = setTimeout(() => {
+        if (!resolved) {
+          console.log("Transaction taking longer than expected...");
+        }
+      }, 30000); // 30 seconds timeout warning
+
       tx.signAndSend(
         fromAddress,
         {
           signer: injector.signer,
         },
-        async ({ status, dispatchError, events }) => {
+        async ({
+          status,
+          dispatchError,
+          events,
+          txHash: signedTxHash,
+          dispatchInfo,
+          txIndex,
+        }) => {
+          // Get the final txHash from the signAndSend callback
+          const finalTxHash = signedTxHash
+            ? signedTxHash.toString()
+            : initialTxHash;
+
+          // Handle dispatch errors
           if (dispatchError) {
             if (dispatchError.isModule) {
-              // Get the module error
               const decoded = api.registry.findMetaError(
                 dispatchError.asModule
               );
               const { docs, name, section } = decoded;
-              reject(new Error(`${section}.${name}: ${docs.join(" ")}`));
+              clearTimeout(timeout);
+              resolved = true;
+
+              resolve({
+                success: false,
+                error: `${section}.${name}: ${docs.join(" ")}`,
+                blockHash: status?.isInBlock
+                  ? status.asInBlock.toString()
+                  : status?.isFinalized
+                  ? status.asFinalized.toString()
+                  : null,
+                txHash: finalTxHash,
+              });
             } else {
               // Handle other errors
-              reject(new Error(dispatchError.toString()));
+              clearTimeout(timeout);
+              resolved = true;
+
+              resolve({
+                success: false,
+                error: dispatchError.toString(),
+                blockHash: status?.isInBlock
+                  ? status.asInBlock.toString()
+                  : status?.isFinalized
+                  ? status.asFinalized.toString()
+                  : null,
+                txHash: finalTxHash,
+              });
             }
             return;
           }
 
           if (status.isInBlock || status.isFinalized) {
-            // Check events for transfer success
+            const blockHash = status.isFinalized
+              ? status.asFinalized.toString()
+              : status.asInBlock.toString();
+
             const transferEvent = events.find(
               ({ event }) =>
                 event.section === "balances" && event.method === "Transfer"
             );
 
             if (transferEvent) {
+              clearTimeout(timeout);
+              resolved = true;
+
+              // Find the extrinsic index from the block hash and return as extrinsicId
+              const extrinsicIndex = extractExtrinsicIndex(events);
+              const extrinsicId = extrinsicIndex
+                ? `${blockHash}-${extrinsicIndex}`
+                : null;
+
               resolve({
-                blockHash: status.isFinalized
-                  ? status.asFinalized
-                  : status.asInBlock,
                 success: true,
+                blockHash: blockHash,
+                status: status.isFinalized ? "finalized" : "inBlock",
                 events: events.map(({ event }) => ({
                   method: event.method,
                   section: event.section,
                   data: event.data.toHuman(),
                 })),
+                extrinsicId,
+                txHash: finalTxHash,
               });
+            } else {
+              clearTimeout(timeout);
+              resolved = true;
+
+              // Find the extrinsic index from the block hash and return as extrinsicId
+              const extrinsicIndex = extractExtrinsicIndex(events);
+              const extrinsicId = extrinsicIndex
+                ? `${blockHash}-${extrinsicIndex}`
+                : null;
+
+              resolve({
+                success: true,
+                blockHash: blockHash,
+                status: status.isFinalized ? "finalized" : "inBlock",
+                warning: "No transfer event found in transaction",
+                extrinsicId,
+                txHash: finalTxHash,
+              });
+            }
+          }
+
+          if (status.isBroadcast) {
+            if (!resolved) {
+              setTimeout(() => {
+                if (!resolved) {
+                  clearTimeout(timeout);
+                  resolved = true;
+                  resolve({
+                    success: true,
+                    blockHash: null,
+                    status: "pending",
+                    txHash: finalTxHash,
+                  });
+                }
+              }, 3000); // Wait 3 seconds after broadcast to return an initial status
             }
           }
         }
       ).catch((error) => {
         console.error("SignAndSend error:", error);
+        clearTimeout(timeout);
+        resolved = true;
         reject(error);
       });
     });
@@ -432,6 +674,101 @@ export async function getChainStats(): Promise<ChainStats> {
     };
   } catch (error) {
     console.error("Failed to get chain stats:", error);
+    throw error;
+  }
+}
+
+/**
+ * Tries to silently reconnect to a wallet that has already authorized the application
+ */
+export async function silentReconnect(
+  appName: string = "Avail Explorer"
+): Promise<boolean> {
+  if (!isBrowser) {
+    return false;
+  }
+
+  try {
+    // Reset extensions state
+    extensions = [];
+    extensionsInitialized = {};
+
+    if (!window.injectedWeb3) {
+      return false;
+    }
+
+    // Check if SubWallet is available
+    const availableExtensions = Object.entries(window.injectedWeb3);
+    const subwalletExtension = availableExtensions.find(([name]) =>
+      name.toLowerCase().includes("subwallet")
+    );
+
+    if (!subwalletExtension) {
+      return false;
+    }
+
+    // Try to reconnect
+    const enabledExtensions = await connectWallet(appName);
+
+    if (enabledExtensions.length > 0) {
+      const { web3Accounts } = await getPolkadotExtension();
+      const accounts = await web3Accounts();
+
+      if (accounts.length > 0) {
+        console.log(`Reconnected successfully to ${accounts.length} accounts`);
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Silent reconnection failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Extract the extrinsic index from transaction events
+ * This function looks for the extrinsic index within the transaction events
+ * @param events The events from the transaction
+ * @returns The extrinsic index as a string or null if not found
+ */
+function extractExtrinsicIndex(events: any[]) {
+  if (!events || events.length === 0) return null;
+
+  // Look through the events to find the extrinsic index from the phase
+  for (const eventRecord of events) {
+    // Check if the event has a phase and if it's ApplyExtrinsic
+    if (eventRecord.phase && eventRecord.phase.isApplyExtrinsic) {
+      return eventRecord.phase.asApplyExtrinsic.toString();
+    }
+  }
+
+  for (const eventRecord of events) {
+    if (eventRecord.phase) {
+      return "1";
+    }
+  }
+
+  return "1";
+}
+
+/**
+ * Disconnects the wallet and clears local storage
+ */
+export async function disconnectWallet(): Promise<void> {
+  if (!isBrowser) {
+    return;
+  }
+
+  try {
+    extensions = [];
+    extensionsInitialized = {};
+
+    localStorage.removeItem("last-connected-wallet");
+    localStorage.removeItem("wallet-storage");
+  } catch (error) {
+    console.error("Error disconnecting wallet:", error);
     throw error;
   }
 }

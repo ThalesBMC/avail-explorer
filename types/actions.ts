@@ -8,10 +8,14 @@ export interface Transaction {
   status: TransactionStatus;
   message: string;
   senderAddress: string;
+  explorerUrl?: string;
   details: {
     recipient?: string;
     amount?: string;
     data?: string;
+    extrinsicId?: string;
+    hash?: string;
+    txHash?: string;
   };
 }
 
